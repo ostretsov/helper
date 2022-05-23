@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -22,8 +23,8 @@ func CSVToCommands() {
 	}
 	defer func() { _ = f.Close() }()
 
-	placeholders := countPlaceholders(os.Args[3])
-	if placeholders == 0 {
+	placeholders := placeholders(os.Args[3])
+	if len(placeholders) == 0 {
 		log.Fatal("no placeholders found in command")
 	}
 
@@ -37,26 +38,25 @@ func CSVToCommands() {
 			log.Fatalf("failed to read line: %s", err)
 		}
 
-		if len(line) != placeholders {
-			log.Fatalf("line has %d columns, but %d placeholders", len(line), placeholders)
-		}
-
 		cmd := os.Args[3]
-		for i := 1; i <= placeholders; i++ {
-			cmd = strings.Replace(cmd, "${"+strconv.Itoa(i)+"}", line[i-1], -1)
+		for _, p := range placeholders {
+			cmd = strings.Replace(cmd, "${"+strconv.Itoa(p)+"}", line[p-1], -1)
 		}
 		fmt.Println(cmd)
 	}
 }
 
-func countPlaceholders(s string) int {
-	count := 0
-	for i := 1; ; i++ {
-		if strings.Contains(s, "${"+strconv.Itoa(i)+"}") {
-			count++
-		} else {
-			break
+func placeholders(s string) []int {
+	re := regexp.MustCompile(`\${(\d+)}`)
+
+	var pl []int
+	found := re.FindAllStringSubmatch(s, -1)
+	for _, f := range found {
+		colNum, err := strconv.Atoi(f[1])
+		if err != nil {
+			panic(fmt.Sprintf("placeholder must be a number: %s", err))
 		}
+		pl = append(pl, colNum)
 	}
-	return count
+	return pl
 }
